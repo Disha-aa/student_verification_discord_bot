@@ -82,7 +82,7 @@ class AdminCog(commands.Cog):
         full_name = full_name.strip().title()
         await inter.response.defer(ephemeral=True)
 
-        if (
+        if not (
             1 <= group_num <= 9
         ):  # I have 9 classes at university—so the grading scale is from 1 to 10
             await inter.edit_original_response(content=("We only have 9 groups"))
