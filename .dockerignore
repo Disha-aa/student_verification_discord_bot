@@ -1,0 +1,12 @@
+venv/
+.venv/
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.git
+.gitignore
+.env
+*.log
+fill_database/roles_config.json
+fill_database/group.csv
