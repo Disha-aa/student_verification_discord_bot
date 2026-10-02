@@ -15,7 +15,7 @@ class RegisterModal(disnake.ui.Modal):
     def __init__(self):
         components = [
             disnake.ui.TextInput(
-                label="Enter your full name (in Ukrainian)",
+                label="Enter your full name",
                 placeholder="Last name First name Patronymic",
                 custom_id="full_name",
                 style=disnake.TextInputStyle.short,
