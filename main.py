@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 import disnake
-from db.database import init_db
+from db.database import close_db_pool, init_db
 from disnake.ext import commands
 from dotenv import load_dotenv
 
@@ -31,17 +31,19 @@ bot.load_extension("cogs.admin")
 
 @bot.event
 async def on_ready():
-    print(f"start {bot.user.id}")
-    await bot._sync_application_commands()
+    logging.info(f"Bot started successfully as {bot.user} (ID: {bot.user.id})")
 
 
 async def main():
     await init_db()
-    await bot.start(TOKEN)
+    try:
+        await bot.start(TOKEN)
+    finally:
+        await close_db_pool()
 
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("bot stopped")
+        logging.info("Bot stopped by user")

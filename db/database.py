@@ -1,3 +1,4 @@
+import logging
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -56,7 +57,7 @@ async def init_db():
         await init_db_pool()
 
     if not SCHEMA_PATH.exists():
-        print("db error")
+        logging.error("Database schema file schema.sql not found!")
         return
 
     schema_sql = load_schema()
@@ -74,14 +75,14 @@ async def init_db():
             await add_group_role_id(groups)
             await load_students_in_db()
 
-    print("lesgo")
+    logging.info("Database schema initialized and verified.")
 
 
 async def add_group_role_id(groups: dict[int, int]):
     async with get_connections() as conn:
         await conn.executemany(
             """
-            INSERT INTO study_groups (group_number, discord_role_id)
+            INSERT INTO nure_groups (group_number, discord_role_id)
             VALUES ($1, $2)
             ON CONFLICT (group_number) 
             DO UPDATE SET discord_role_id = EXCLUDED.discord_role_id;
@@ -142,7 +143,7 @@ async def get_discord_id_role(input_name: str) -> int | None:
         return await conn.fetchval(
             """
             SELECT g.discord_role_id 
-            FROM study_groups g 
+            FROM nure_groups g 
             INNER JOIN students s
             ON g.group_number = s.user_group
             WHERE s.normalized_name = $1
@@ -208,7 +209,7 @@ async def get_role_id_by_discord_id(discord_id: int) -> int | None:
         return await conn.fetchval(
             """
             SELECT g.discord_role_id
-            FROM study_groups g
+            FROM nure_groups g
             INNER JOIN students s ON g.group_number = s.user_group
             WHERE s.discord_id = $1
             LIMIT 1;

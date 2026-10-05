@@ -1,7 +1,6 @@
 import os
 
 import disnake
-from cogs.auth import process_student_verification
 from db.database import (
     add_student,
     delete_user_from_db,
@@ -11,7 +10,8 @@ from db.database import (
     update_student_role,
 )
 from disnake.ext import commands
-from services.verification import remove_discord_role
+from services.verification import process_student_verification, remove_discord_role
+from utils.i18n import t
 from utils.security import is_admin, is_owner
 
 LOG_CHANNEL_ID = os.getenv("LOG_CHANNEL_ID")
@@ -29,7 +29,7 @@ class AdminCog(commands.Cog):
 
     @commands.slash_command(
         name="grant_admin",
-        description="Grant admin rights to a user",
+        description=t("grant_admin_desc"),
     )
     @is_owner()
     async def grant_admin(
@@ -40,7 +40,7 @@ class AdminCog(commands.Cog):
         student = await get_student_by_discord_id(target_member.id)
         if not student:
             await inter.response.send_message(
-                f"{target_member.mention} has not been verified yet", ephemeral=True
+                t("not_verified_yet", member=target_member.mention), ephemeral=True
             )
             return False
 
@@ -48,7 +48,7 @@ class AdminCog(commands.Cog):
 
         if current_role == "admin":
             await inter.response.send_message(
-                f"{target_member.mention} already has the admin role", ephemeral=True
+                t("already_has_admin", member=target_member.mention), ephemeral=True
             )
             return False
 
@@ -58,18 +58,18 @@ class AdminCog(commands.Cog):
 
         if not success:
             await inter.response.send_message(
-                "Failed to update the role in the database", ephemeral=True
+                t("db_role_update_failed"), ephemeral=True
             )
             return False
         await inter.response.send_message(
-            f"User {target_member.mention} was successfully granted the **admin** role in the database!",
+            t("grant_admin_success", member=target_member.mention),
             ephemeral=True,
         )
         return True
 
     @commands.slash_command(
         name="verification_user",
-        description="Verify a student",
+        description=t("verify_user_desc"),
     )
     @is_admin()
     async def verification_user(
@@ -82,20 +82,18 @@ class AdminCog(commands.Cog):
         full_name = full_name.strip().title()
         await inter.response.defer(ephemeral=True)
 
-        if not (
-            1 <= group_num <= 9
-        ):  # I have 9 classes at university—so the grading scale is from 1 to 10
-            await inter.edit_original_response(content=("We only have 9 groups"))
+        if not (1 <= group_num <= 9):
+            await inter.edit_original_response(content=t("invalid_group"))
             return
 
         if len(full_name.strip().split()) < 2:
-            await inter.edit_original_response(content=("Enter the full name"))
+            await inter.edit_original_response(content=t("enter_full_name"))
             return
 
         student = await get_student_by_discord_id(target_member.id)
         if student:
             await inter.edit_original_response(
-                content=(f"{target_member.mention} has already been verified")
+                content=t("user_already_verified", member=target_member.mention)
             )
             return
 
@@ -105,7 +103,7 @@ class AdminCog(commands.Cog):
 
         if not success:
             await inter.edit_original_response(
-                content=("Database error: failed to add the record")
+                content=t("db_insert_error")
             )
             return
         role_success, role_msg = await process_student_verification(
@@ -114,32 +112,33 @@ class AdminCog(commands.Cog):
 
         if not role_success:
             await inter.edit_original_response(
-                content=(
-                    f"The record was created, but an error occurred with the roles: {role_msg}"
-                )
+                content=t("manual_verify_role_err", error=role_msg)
             )
             return
 
         await inter.edit_original_response(
-            content=(
-                f"Student {full_name} was successfully linked to {target_member.mention}, roles granted"
-            )
+            content=t("manual_verify_success", name=full_name, member=target_member.mention)
         )
 
-        if inter.guild:
+        if inter.guild and LOG_CHANNEL_ID and LOG_CHANNEL_ID.strip().isdigit():
             log_channel = inter.guild.get_channel(int(LOG_CHANNEL_ID))
             if log_channel:
                 try:
                     await log_channel.send(
-                        f"Administrator {inter.author.mention} manually verified "
-                        f"user {target_member.mention} (`{target_member.id}`) "
-                        f"as: **{full_name}** | Group: **{group_num}**"
+                        t(
+                            "log_manual_verify",
+                            author=inter.author.mention,
+                            member=target_member.mention,
+                            member_id=target_member.id,
+                            name=full_name,
+                            group=group_num,
+                        )
                     )
                 except (disnake.Forbidden, disnake.HTTPException):
                     pass
 
     @commands.slash_command(
-        name="unverify_user", description="Revoke a user's verification"
+        name="unverify_user", description=t("unverify_desc")
     )
     @is_admin()
     async def unverify_user(
@@ -154,36 +153,37 @@ class AdminCog(commands.Cog):
         is_unverified = await unverify_student(target_member.id)
         if not is_unverified:
             await inter.edit_original_response(
-                content=(f"User {target_member.mention} was not found in the database")
+                content=t("user_not_found_db", member=target_member.mention)
             )
             return
 
         role_removed = await remove_discord_role(inter, discord_role_id, target_member)
         if not role_removed:
             await inter.edit_original_response(
-                content=(
-                    f"Verification for user {target_member.mention} was successfully revoked, "
-                    "but the role could not be removed (check permissions or whether the role exists)"
-                )
+                content=t("unverify_role_err", member=target_member.mention)
             )
         else:
             await inter.edit_original_response(
-                content=(f"Verification for {target_member.mention} has been revoked")
+                content=t("unverify_success", member=target_member.mention)
             )
 
-            if inter.guild:
+            if inter.guild and LOG_CHANNEL_ID and LOG_CHANNEL_ID.strip().isdigit():
                 log_channel = inter.guild.get_channel(int(LOG_CHANNEL_ID))
                 if log_channel:
                     try:
                         await log_channel.send(
-                            f"Administrator {inter.author.mention} revoked verification "
-                            f"for user {target_member.mention} (`{target_member.id}`)"
+                            t(
+                                "log_unverify",
+                                author=inter.author.mention,
+                                member=target_member.mention,
+                                member_id=target_member.id,
+                            )
                         )
                     except (disnake.Forbidden, disnake.HTTPException):
                         pass
 
     @commands.slash_command(
-        name="delete_user", description="Delete a user from the database"
+        name="delete_user", description=t("delete_user_desc")
     )
     @is_admin()
     async def delete_user(
@@ -198,7 +198,7 @@ class AdminCog(commands.Cog):
         is_deleted = await delete_user_from_db(target_member.id)
         if not is_deleted:
             await inter.edit_original_response(
-                content=(f"User {target_member.mention} was not found in the database")
+                content=t("user_not_found_db", member=target_member.mention)
             )
             return
 
@@ -206,26 +206,24 @@ class AdminCog(commands.Cog):
 
         if not role_removed:
             await inter.edit_original_response(
-                content=(
-                    f"User {target_member.mention} was successfully deleted from the database, but the role"
-                    " could not be removed (check permissions or whether the role exists)"
-                )
+                content=t("delete_role_err", member=target_member.mention)
             )
-
         else:
             await inter.edit_original_response(
-                content=(
-                    f"User {target_member.mention} was successfully deleted from the database"
-                )
+                content=t("delete_success", member=target_member.mention)
             )
 
-            if inter.guild:
+            if inter.guild and LOG_CHANNEL_ID and LOG_CHANNEL_ID.strip().isdigit():
                 log_channel = inter.guild.get_channel(int(LOG_CHANNEL_ID))
                 if log_channel:
                     try:
                         await log_channel.send(
-                            f"Administrator {inter.author.mention} deleted "
-                            f"user {target_member.mention} (`{target_member.id}`) from the database"
+                            t(
+                                "log_delete",
+                                author=inter.author.mention,
+                                member=target_member.mention,
+                                member_id=target_member.id,
+                            )
                         )
                     except (disnake.Forbidden, disnake.HTTPException):
                         pass

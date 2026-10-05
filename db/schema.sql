@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS study_groups (
+CREATE TABLE IF NOT EXISTS nure_groups (
     group_number INTEGER PRIMARY KEY,
     discord_role_id BIGINT NOT NULL
 );
@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS students (
     full_name TEXT NOT NULL,
     normalized_name TEXT NOT NULL,
     user_role TEXT DEFAULT 'student',
-    user_group INTEGER NOT NULL REFERENCES study_groups(group_number) ON DELETE RESTRICT,
+    user_group INTEGER NOT NULL REFERENCES nure_groups(group_number) ON DELETE RESTRICT,
     discord_id BIGINT UNIQUE DEFAULT NULL,
     registered_at TIMESTAMPTZ DEFAULT NULL
 );

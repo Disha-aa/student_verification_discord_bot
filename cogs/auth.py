@@ -1,12 +1,12 @@
 import os
 
 import disnake
-from db.database import find_student_by_name, register_student
+from db.database import find_student_by_name, register_student, unverify_student
 from disnake.ext import commands
 from services.verification import process_student_verification
+from utils.i18n import t
 from utils.security import is_admin
 
-VERIFIED_ROLE_ID = os.getenv("VERIFIED_ROLE_ID")
 LOG_CHANNEL_ID = os.getenv("LOG_CHANNEL_ID")
 
 
@@ -15,14 +15,14 @@ class RegisterModal(disnake.ui.Modal):
     def __init__(self):
         components = [
             disnake.ui.TextInput(
-                label="Enter your full name",
-                placeholder="Last name First name Patronymic",
+                label=t("modal_name_label"),
+                placeholder=t("modal_name_placeholder"),
                 custom_id="full_name",
                 style=disnake.TextInputStyle.short,
                 max_length=100,
             )
         ]
-        super().__init__(title="Student authorization", components=components)
+        super().__init__(title=t("modal_title"), components=components)
 
     async def callback(self, inter: disnake.ModalInteraction) -> None:
         input_name = inter.text_values["full_name"].strip().title()
@@ -30,14 +30,14 @@ class RegisterModal(disnake.ui.Modal):
 
         if not students:
             await inter.response.send_message(
-                "You are not on the student lists. Please check that you entered your full name correctly",
+                t("not_in_lists"),
                 ephemeral=True,
             )
             return
 
         if len(students) > 1:
             await inter.response.send_message(
-                "Multiple students with this full name were found. Please contact an administrator.",
+                t("multiple_found"),
                 ephemeral=True,
             )
             return
@@ -46,7 +46,7 @@ class RegisterModal(disnake.ui.Modal):
 
         if student["discord_id"] is not None:
             await inter.response.send_message(
-                "This student is already registered in the system", ephemeral=True
+                t("already_registered"), ephemeral=True
             )
             return
 
@@ -56,22 +56,34 @@ class RegisterModal(disnake.ui.Modal):
 
         if not db_success:
             await inter.response.send_message(
-                "Database error during registration", ephemeral=True
+                t("db_error_register"), ephemeral=True
             )
             return
 
         _success, roles_msg = await process_student_verification(
             guild=inter.guild, member=inter.author, full_name=input_name
         )
+
+        if not _success:
+            await unverify_student(inter.author.id)
+            await inter.response.send_message(
+                t("reg_rollback_msg", error=roles_msg), ephemeral=True
+            )
+            return
+
         await inter.response.send_message(roles_msg, ephemeral=True)
 
-        if _success and inter.guild:
+        if inter.guild and LOG_CHANNEL_ID and LOG_CHANNEL_ID.strip().isdigit():
             log_channel = inter.guild.get_channel(int(LOG_CHANNEL_ID))
             if log_channel:
                 try:
                     await log_channel.send(
-                        f"User {inter.author.mention} (`{inter.author.id}`) "
-                        f"was successfully verified as: **{input_name}**"
+                        t(
+                            "log_verified",
+                            member=inter.author.mention,
+                            member_id=inter.author.id,
+                            name=input_name,
+                        )
                     )
                 except (disnake.Forbidden, disnake.HTTPException):
                     pass
@@ -82,7 +94,7 @@ class RegisterView(disnake.ui.View):
         super().__init__(timeout=None)
 
     @disnake.ui.button(
-        label="Start verification",
+        label=t("btn_verify"),
         style=disnake.ButtonStyle.success,
         custom_id="reg_button",
     )
@@ -102,24 +114,19 @@ class AuthCog(commands.Cog):
 
     @is_admin()
     @commands.slash_command(
-        name="setup_reg", description="Post the verification block in the channel"
+        name="setup_reg", description=t("setup_reg_desc")
     )
     @commands.has_permissions(administrator=True)
     async def setup_reg(self, inter: disnake.ApplicationCommandInteraction):
         embed = disnake.Embed(
-            title="Student verification",
-            description=(
-                "To get access to your faculty roles and channels, "
-                "click the button below and enter your full name"
-            ),
+            title=t("embed_title"),
+            description=t("embed_desc"),
             color=disnake.Color.green(),
         )
-        embed.set_footer(text="Automatic registration system")
+        embed.set_footer(text=t("embed_footer"))
 
         await inter.channel.send(embed=embed, view=RegisterView())
-        await inter.response.send_message(
-            "Verification block sent successfully", ephemeral=True
-        )
+        await inter.response.send_message(t("setup_reg_success"), ephemeral=True)
 
 
 def setup(bot: commands.InteractionBot):

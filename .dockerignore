@@ -8,5 +8,7 @@ __pycache__
 .gitignore
 .env
 *.log
+roles_config.json
+group.csv
 fill_database/roles_config.json
 fill_database/group.csv

@@ -1,5 +1,6 @@
 import csv
 import json
+import os
 from pathlib import Path
 
 from db.database import add_student, set_owner_role
@@ -8,9 +9,8 @@ BASE_DIR = Path(__file__).resolve().parent
 CSV_PATH = BASE_DIR / "group.csv"
 ROLES_PATH = BASE_DIR / "roles_config.json"
 
-OWNERS = [
-    "Morgan Liam",
-]
+raw_owners = os.getenv("OWNERS", "")
+OWNERS = [name.strip() for name in raw_owners.split(",") if name.strip()]
 
 
 def load_roles_config() -> dict[int, int]:

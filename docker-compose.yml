@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: study_postgres
+    container_name: nure_postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
@@ -19,7 +19,7 @@ services:
 
   bot:
     build: .
-    container_name: study_bot
+    container_name: nure_bot
     restart: unless-stopped
     depends_on:
       postgres:
@@ -27,8 +27,8 @@ services:
     env_file:
       - .env
     volumes:
-      - ./fill_database/group.csv:/app/fill_database/group.csv:ro
       - ./fill_database/roles_config.json:/app/fill_database/roles_config.json:ro
+      - ./fill_database/group.csv:/app/fill_database/group.csv:ro
 
 volumes:
   pg_data:
